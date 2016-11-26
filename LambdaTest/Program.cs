@@ -13,7 +13,6 @@ namespace LambdaTest
         {
             // The search algorithm could be improved a lot
             // but it was more to try out funcs and lambdas in methods
-            // also i am not sure why i am calling the expressions 'wildcards'... 
             Program program = new Program();
             program.Run();
         }
@@ -146,7 +145,7 @@ namespace LambdaTest
             for(int i=0; i<validGroups.Count; i++)
             {
                 var group = validGroups[i];
-                var comparator = (i >= comparators.Count) ? null : new Comparator(comparators[i], i, i + 1);
+                var comparator = (i >= comparators.Count-1) ? null : new Comparator(comparators[i], i, i + 1);
                 Search search = null;
 
                 // Age < 10 
