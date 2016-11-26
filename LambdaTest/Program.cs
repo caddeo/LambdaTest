@@ -2,8 +2,6 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace LambdaTest
 {
@@ -20,7 +18,6 @@ namespace LambdaTest
         public void Run()
         {
             var repository = new PersonRepository(new Person("Patrick", new DateTime(1993, 11, 23)), new Person("Tobias", new DateTime(2004, 12, 1)));
-
             var input = "";
 
             Console.WriteLine("\nFind a person by property (Age, Birthday, Name)\n" +
@@ -145,7 +142,7 @@ namespace LambdaTest
             for(int i=0; i<validGroups.Count; i++)
             {
                 var group = validGroups[i];
-                var comparator = (i >= comparators.Count-1) ? null : new Comparator(comparators[i], i, i + 1);
+                var comparator = (i >= comparators.Count-1) ? null : new Comparator(comparators[i]);
                 Search search = null;
 
                 // Age < 10 
@@ -390,14 +387,10 @@ namespace LambdaTest
     public class Comparator
     {
         public char Type { get; protected set; }
-        public int CompareFirstIndex { get; protected set; }
-        public int CompareSecondIndex { get; protected set; }
 
-        public Comparator(char type, int compareIndex, int compareWithIndex)
+        public Comparator(char type)
         {
             this.Type = type;
-            this.CompareFirstIndex = compareIndex;
-            this.CompareSecondIndex = compareWithIndex;
         }
     }
 }
