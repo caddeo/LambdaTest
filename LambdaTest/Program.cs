@@ -176,7 +176,7 @@ namespace LambdaTest
         {
             var personProperties = typeof(Person).GetProperties();
 
-            // is the value a property name, (with both to lowercase) ?
+            // evaluates if the value is a property name, (with both to lowercase)
             return personProperties.Any(property => string.Equals(value, property.Name, StringComparison.CurrentCultureIgnoreCase));
         }
 
@@ -187,6 +187,8 @@ namespace LambdaTest
 
             var personParameter = new List<Tuple<Search, Comparator>>() { personTuple };
 
+            // parse userinput first (int and datetime) 
+
             return GetPersonsFromRepository(personParameter, repo).FirstOrDefault();
         }
 
@@ -194,15 +196,12 @@ namespace LambdaTest
         // mistake to introduce classes search and comparator since they're not based on a interface
         public List<Person> GetPersonsFromRepository(List<Tuple<Search, Comparator>> queries, PersonRepository repo)
         {
-            var personsFound = new List<Person>();
+            var expressionTree = new List<Tuple<Expression, Comparator>>();
 
-            List<Expression> expressionTree = new List<Expression>();
-
-            // Validate and pass values 
+            // this is the parameter like "person => person.Age = 10"
             var parameterExpression = Expression.Parameter(typeof(Person), "person");
-            // This gets a little tricky
-            // We have to make the expression tree
-            // but first we must convert the values
+
+            // Create each expression tree 
             foreach (var query in queries)
             {
                 // https://msdn.microsoft.com/en-us/library/bb882637(v=vs.110).aspx
@@ -210,17 +209,18 @@ namespace LambdaTest
 
                 var search = query.Item1;
                 
-                // Handle left hand (ex. "Name", "Age", "Birthday")
-                // find parameter first
+                // Find parameter first (we already filtered this) 
                 var parameterType =
                     typeof(Person).GetProperties()
                         .FirstOrDefault(
                             property => string.Equals(search.Property, property.Name, StringComparison.CurrentCultureIgnoreCase));
 
+                // Handle left hand (ex. "Name", "Age", "Birthday")
                 Expression left = Expression.Property(parameterExpression, parameterType);
                 Expression right = null;
 
                 // Handle right hand (ex. 10, "Patrick", '23-11-1993')
+                // person => person.Age == 10 
                 switch (parameterType.Name)
                 {
                     case "Name":
@@ -234,12 +234,6 @@ namespace LambdaTest
                         // TODO: Try and parse this earlier so we don't get an error
                         right = Expression.Constant(int.Parse(search.Condition), typeof(int));
                         break;
-                }
-
-                // If an error occured
-                if (right == null)
-                {
-                    continue;
                 }
 
                 Expression expressionOperator = null;
@@ -258,20 +252,53 @@ namespace LambdaTest
                         break;
                 }
 
-                // to make sure
-                if (expressionOperator == null)
+                var comparator = query.Item2;
+                expressionTree.Add(new Tuple<Expression, Comparator>(expressionOperator, comparator));
+            }
+
+           var expressions = new List<Expression<Func<Person, bool>>>();
+
+            // If they're 'all null' then there's only one expression 
+            if (expressionTree.All(tree => tree.Item2 == null))
+            {
+                expressions = expressionTree.Select(
+                    expression => Expression.Lambda<Func<Person, bool>>(expression.Item1, parameterExpression)).ToList();
+
+                return repo.GetPersons(expressions.FirstOrDefault().Compile());
+            }
+
+            var expressionsTreesCombined = new List<Expression>();
+
+            for (int i=0; i<expressionTree.Count; i++)
+            {
+                var pair = expressionTree[i];
+
+                var expression = pair.Item1;
+                var comparator = pair.Item2;
+
+                // if it's zero, it was the last comparator
+                if (comparator == null)
                 {
                     continue;
                 }
 
-                expressionTree.Add(expressionOperator);
+                if (comparator?.Type == '&')
+                {
+                    var nextExpression = expressionTree[i + 1].Item1;
+                    expressionsTreesCombined.Add(Expression.And(expression, nextExpression));
+                }
+                else if (comparator?.Type == '|')
+                {
+                    var nextExpression = expressionTree[i + 1].Item1;
+                    expressionsTreesCombined.Add(Expression.Or(expression, nextExpression));
+                }
             }
 
-
-            var expressions = expressionTree.Select(
-                    x => Expression.Lambda<Func<Person, bool>>(x, parameterExpression));
+            expressions = expressionsTreesCombined.Select(
+                expression => Expression.Lambda<Func<Person, bool>>(expression, parameterExpression)).ToList();
 
             return repo.GetPersons(expressions.FirstOrDefault().Compile());
+
         }
     }
 
