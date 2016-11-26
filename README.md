@@ -8,7 +8,7 @@ I ended up making it a bit bigger than i intended. There's no architectonic corr
 
 The search algorithm is made from logic, there's no mathmathic patterns, maybe in a later iteration, I'll also introduce this - it depends on time.       
 
-I have to make some more test data, since it's from memory.       
+I have to make some more test data, since it's from memory, but could easily be made into database from the repository, by either introducing a proxy, or doing it directly in the repo        
 
 Features:       
 Search for a person with multiply conditions     
