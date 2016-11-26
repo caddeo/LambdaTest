@@ -16,9 +16,6 @@ namespace LambdaTest
             // also i am not sure why i am calling the expressions 'wildcards'... 
             Program program = new Program();
             program.Run();
-
-            // TODO: Only allow left hand expressions for now d
-            // TODO: If it's a right hand expression, flip the wildcard
         }
 
         public void Run()
@@ -27,23 +24,24 @@ namespace LambdaTest
 
             var input = "";
 
-            Console.WriteLine(@"Find a person from age (ex. > 12) supports '>', '<' and '=='
-    *Current version only allows one wildcard
-    *Future versions will also allow to search on multiply parameters other than age
-    *Write 'q' to exit");
+            Console.WriteLine("\nFind a person by property (Age, Birthday, Name)\n" +
+                              "ex. Age > 10 23-11-1993 > Birthday\n" +
+                              "or even Age > 10 & 23-11-1993 > Birthday\n" +
+                              "Valid operators: (>, <, =)\n" +
+                              "Valid comparators: (& (AND), | (OR))");
 
             do
             {
                 input = Console.ReadLine();
 
-                if (input.ToLower().Equals("clear"))
+                if (string.IsNullOrEmpty(input))
                 {
-                    Console.Clear();
                     continue;
                 }
 
-                if (string.IsNullOrEmpty(input))
+                if (input.ToLower().Equals("clear"))
                 {
+                    Console.Clear();
                     continue;
                 }
 
@@ -55,21 +53,20 @@ namespace LambdaTest
                     continue;
                 }
 
-                var persons = GetPersonsFromRepository(query.Item2, query.Item1, repository);
+                var persons = GetPersonsFromRepository(query, repository);
 
                 if (persons == null || persons.Count == 0)
                 {
-                    Console.WriteLine("Found 0");
+                    Console.WriteLine("Found none - try again");
                     continue;
                 }
 
-                Console.WriteLine($"Found ({persons.Count}) (age {query.Item2} {query.Item1}):");
-
-                foreach (Person person in persons)
+                Console.WriteLine($"Found ({persons.Count}):");
+                foreach (var person in persons)
                 {
-                    var text = $"Person: {person.Name}, Birthday: {person.Birthday.Value.ToString("dd-MM-yyyy")}, Age: {person.Age}";
-                    Console.WriteLine(text);
+                    Console.WriteLine($"Name: {person.Name}, Birthday: {person.Birthday:dd-MM-yyyy}, Age: {person.Age}");
                 }
+
             } while (input != "q");
 
 
@@ -78,7 +75,7 @@ namespace LambdaTest
         }
 
         // This method should be split up
-        public Tuple<string, char> GetSearchQuery(string input)
+        public List<Tuple<Search, Comparator>> GetSearchQuery(string input)
         {
             if(string.IsNullOrEmpty(input))
             {
@@ -86,88 +83,195 @@ namespace LambdaTest
             }
 
             // TODO: Split search query up in groups
-            // i.e. age > 10 && age < 30 
-            // or age > 10 || birthday = 23-11-93 
+            // i.e. age > 10 & age < 30
+            // or age > 10 | birthday = 23-11-93 
 
             var inputSplit = input.Split(' ');
 
-            // See if the first is a string, get the string group then (i.e 'age') 
-            // then check if the next is a searchParameter
-            // then check if the third is a value
+            var groups = new List<Tuple<string, string, string>>();
+            var comparators = new Dictionary<int, char>();
 
-            char[] operators = { '>', '<', '=' };
-
-
-            // index of wildcard and wildcard
-            var searchOperatorsFound = new Dictionary<int, char>();
-
-            for(int i=0; i<inputSplit.Length; i++)
+            for(int i=0; i<=inputSplit.Length; i+=4)
             {
-                var current = inputSplit[i];
-
-                if(current.Length > 1)
+                if(inputSplit.Length > i+2)
                 {
-                    continue;
+                    groups.Add(new Tuple<string, string, string>(inputSplit[i], inputSplit[i + 1], inputSplit[i + 2]));
                 }
 
-                var searchOperator = ' ';
-                char.TryParse(current, out searchOperator);
-
-                if(operators.Contains(searchOperator))
+                // is there a comperator? (bit operators) 
+                if(inputSplit.Length > i+3 && (inputSplit[i + 3] == "&" || inputSplit[i + 3] == "|"))
                 {
-                    searchOperatorsFound.Add(i, searchOperator);
+                    // TODO: locking if multithreading
+                    comparators.Add(groups.Count - 1, char.Parse(inputSplit[i + 3]));
                 }
             }
 
-            if(searchOperatorsFound.Count == 0)
+            char[] operators = { '>', '<', '=' };
+
+            // because of threading, we can't remove it from groups, so we create a new 
+            var validGroups =  new List<Tuple<string, string, string>>();
+
+            foreach (var group in groups)
+            {
+                if((IsPropertyOfPerson(group.Item1) == true || IsPropertyOfPerson(group.Item3) == true))
+                {
+                    var operatorChar = ' ';
+                    var isChar = char.TryParse(group.Item2, out operatorChar);
+
+                    if (isChar == true && operators.Contains(operatorChar) == true)
+                    {
+                        validGroups.Add(group);
+                        continue;
+                    }
+                }
+
+                comparators.Remove(groups.IndexOf(group));
+            }
+
+            if(validGroups.Count == 0)
             {
                 return null;
             }
 
-            var firstOperator = searchOperatorsFound.First();
-
-            if(inputSplit.Length-1 >= firstOperator.Key + 1)
+            // validate the comparator if it's the same size as valid groups
+            // then the last comperator is invalid 
+            if (validGroups.Count <= comparators.Count)
             {
-                var searchParamter = inputSplit[firstOperator.Key + 1];
-                var operatorSearch = firstOperator.Value;
-
-                return new Tuple<string, char>(searchParamter, operatorSearch);
+                comparators.Remove(comparators.Count - 1);
             }
-            else if(inputSplit.Length-1 > 0)
-            {
-                var searchParamter = inputSplit[firstOperator.Key - 1];
-                var operatorSearch = firstOperator.Value;
 
-                return new Tuple<string, char>(searchParamter, operatorSearch);
+            // List of Searches, and the comperator for the next 
+            var searches = new List<Tuple<Search, Comparator>>();
+            
+            for(int i=0; i<validGroups.Count; i++)
+            {
+                var group = validGroups[i];
+                var comparator = (i >= comparators.Count) ? null : new Comparator(comparators[i], i, i + 1);
+                Search search = null;
+
+                // Age < 10 
+                if (IsPropertyOfPerson(group.Item1))
+                {
+                    search = new Search(group.Item1, char.Parse(group.Item2), group.Item3);
+                }
+
+                // 10 > Age
+                else
+                {
+                    search = new Search(group.Item3, char.Parse(group.Item2),  group.Item1);
+                }
+
+                searches.Add(new Tuple<Search, Comparator>(search, comparator));
+            }
+
+            if (searches.Count > 0)
+            {
+                return searches;
             }
 
             return null;
         }
 
-        public List<Person> GetPersonsFromRepository(char searchOperator, string search, PersonRepository repo)
+        private bool IsPropertyOfPerson(string value)
         {
-            var ageSearch = 0;
+            var personProperties = typeof(Person).GetProperties();
 
-            bool result = int.TryParse(search, out ageSearch);
+            // is the value a property name, (with both to lowercase) ?
+            return personProperties.Any(property => string.Equals(value, property.Name, StringComparison.CurrentCultureIgnoreCase));
+        }
 
-            if(result == false || ageSearch < 0)
+        public Person GetPersonFromRepository(string searchProperty, char searchOperator, string searchCondition, PersonRepository repo)
+        {
+            var search = new Search(searchProperty, searchOperator, searchCondition);
+            var personTuple = new Tuple<Search, Comparator>(search, null);
+
+            var personParameter = new List<Tuple<Search, Comparator>>() { personTuple };
+
+            return GetPersonsFromRepository(personParameter, repo).FirstOrDefault();
+        }
+
+        // Make this mess into multiply methods 
+        // mistake to introduce classes search and comparator since they're not based on a interface
+        public List<Person> GetPersonsFromRepository(List<Tuple<Search, Comparator>> queries, PersonRepository repo)
+        {
+            var personsFound = new List<Person>();
+
+            List<Expression> expressionTree = new List<Expression>();
+
+            // Validate and pass values 
+            var parameterExpression = Expression.Parameter(typeof(Person), "person");
+            // This gets a little tricky
+            // We have to make the expression tree
+            // but first we must convert the values
+            foreach (var query in queries)
             {
-                return null;
+                // https://msdn.microsoft.com/en-us/library/bb882637(v=vs.110).aspx
+                // First convert the values 
+
+                var search = query.Item1;
+                
+                // Handle left hand (ex. "Name", "Age", "Birthday")
+                // find parameter first
+                var parameterType =
+                    typeof(Person).GetProperties()
+                        .FirstOrDefault(
+                            property => string.Equals(search.Property, property.Name, StringComparison.CurrentCultureIgnoreCase));
+
+                Expression left = Expression.Property(parameterExpression, parameterType);
+                Expression right = null;
+
+                // Handle right hand (ex. 10, "Patrick", '23-11-1993')
+                switch (parameterType.Name)
+                {
+                    case "Name":
+                        right = Expression.Constant(search.Condition, typeof(string));
+                        break;
+                    case "Birthday":
+                        // TODO: Try and parse this earlier so we don't get an error
+                        right = Expression.Constant(DateTime.Parse(search.Condition), typeof(DateTime));
+                        break;
+                    case "Age":
+                        // TODO: Try and parse this earlier so we don't get an error
+                        right = Expression.Constant(int.Parse(search.Condition), typeof(int));
+                        break;
+                }
+
+                // If an error occured
+                if (right == null)
+                {
+                    continue;
+                }
+
+                Expression expressionOperator = null;
+
+                // Handle operators
+                switch (search.Operator)
+                {
+                    case '>':
+                        expressionOperator = Expression.GreaterThan(left, right);
+                        break;
+                    case '<':
+                        expressionOperator = Expression.LessThan(left, right);
+                        break;
+                    case '=':
+                        expressionOperator = Expression.Equal(left, right);
+                        break;
+                }
+
+                // to make sure
+                if (expressionOperator == null)
+                {
+                    continue;
+                }
+
+                expressionTree.Add(expressionOperator);
             }
 
-            Expression<Func<Person, bool>> lambda = x => x.Age > ageSearch;
 
-            switch(searchOperator)
-            {
-                case '>':
-                    return repo.GetPersons(x => x.Age > ageSearch);
-                case '<':
-                    return repo.GetPersons(x => x.Age < ageSearch);
-                case '=':
-                    return repo.GetPersons(x => x.Age == ageSearch);
-            }
+            var expressions = expressionTree.Select(
+                    x => Expression.Lambda<Func<Person, bool>>(x, parameterExpression));
 
-            return null;
+            return repo.GetPersons(expressions.FirstOrDefault().Compile());
         }
     }
 
@@ -186,7 +290,7 @@ namespace LambdaTest
 
         private void CalculateAndSetAge()
         {
-            if(this.Birthday == null && this.Birthday.HasValue)
+            if(this.Birthday == null)
             {
                 return;
             }
@@ -240,6 +344,34 @@ namespace LambdaTest
         public Person GetPerson(Func<Person, bool> query)
         {
             return GetPersons(query).FirstOrDefault();
+        }
+    }
+
+    public class Search
+    {
+        public string Property { get; protected set; }
+        public char Operator { get; protected set; }
+        public string Condition { get; protected set; }
+
+        public Search(string property, char operatorChar, string condition)
+        {
+            this.Property = property;
+            this.Operator = operatorChar;
+            this.Condition = condition;
+        }
+    }
+
+    public class Comparator
+    {
+        public char Type { get; protected set; }
+        public int CompareFirstIndex { get; protected set; }
+        public int CompareSecondIndex { get; protected set; }
+
+        public Comparator(char type, int compareIndex, int compareWithIndex)
+        {
+            this.Type = type;
+            this.CompareFirstIndex = compareIndex;
+            this.CompareSecondIndex = compareWithIndex;
         }
     }
 }
