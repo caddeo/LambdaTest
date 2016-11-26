@@ -49,6 +49,8 @@ namespace LambdaTest
                     continue;
                 }
 
+                // TODO: parse userinput first (int and datetime) 
+                // TODO: Parse into multiply methods, possibly classes
                 var persons = GetPersonsFromRepository(query, repository);
 
                 if (persons == null || persons.Count == 0)
@@ -182,8 +184,6 @@ namespace LambdaTest
 
             var personParameter = new List<Tuple<Search, Comparator>>() { personTuple };
 
-            // TODO: parse userinput first (int and datetime) 
-
             return GetPersonsFromRepository(personParameter, repo).FirstOrDefault();
         }
 
@@ -292,7 +292,6 @@ namespace LambdaTest
                 expression => Expression.Lambda<Func<Person, bool>>(expression, parameterExpression)).ToList();
 
             return repo.GetPersons(expressions.FirstOrDefault().Compile());
-
         }
     }
 
