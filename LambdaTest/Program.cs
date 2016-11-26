@@ -97,14 +97,13 @@ namespace LambdaTest
                 // is there a comperator? (bit operators) 
                 if(inputSplit.Length > i+3 && (inputSplit[i + 3] == "&" || inputSplit[i + 3] == "|"))
                 {
-                    // TODO: locking if multithreading
+                    // TODO: lock if multithreading
                     comparators.Add(groups.Count - 1, char.Parse(inputSplit[i + 3]));
                 }
             }
 
             char[] operators = { '>', '<', '=' };
 
-            // because of threading, we can't remove it from groups, so we create a new 
             var validGroups =  new List<Tuple<string, string, string>>();
 
             foreach (var group in groups)
@@ -183,7 +182,7 @@ namespace LambdaTest
 
             var personParameter = new List<Tuple<Search, Comparator>>() { personTuple };
 
-            // parse userinput first (int and datetime) 
+            // TODO: parse userinput first (int and datetime) 
 
             return GetPersonsFromRepository(personParameter, repo).FirstOrDefault();
         }
@@ -201,7 +200,6 @@ namespace LambdaTest
             foreach (var query in queries)
             {
                 // https://msdn.microsoft.com/en-us/library/bb882637(v=vs.110).aspx
-                // First convert the values 
 
                 var search = query.Item1;
                 
