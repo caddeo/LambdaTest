@@ -199,8 +199,6 @@ namespace LambdaTest
             // Create each expression tree 
             foreach (var query in queries)
             {
-                // https://msdn.microsoft.com/en-us/library/bb882637(v=vs.110).aspx
-
                 var search = query.Item1;
                 
                 // Find parameter first (we already filtered this) 
@@ -209,11 +207,12 @@ namespace LambdaTest
                         .FirstOrDefault(
                             property => string.Equals(search.Property, property.Name, StringComparison.CurrentCultureIgnoreCase));
 
+                // https://msdn.microsoft.com/en-us/library/bb882637(v=vs.110).aspx
                 // Handle left hand (ex. "Name", "Age", "Birthday")
                 Expression left = Expression.Property(parameterExpression, parameterType);
                 Expression right = null;
 
-                // Handle right hand (ex. 10, "Patrick", '23-11-1993')
+                // Handle right hand (ex. 10, "Patrick", '23-11-1993') and parse
                 // person => person.Age == 10 
                 switch (parameterType.Name)
                 {
