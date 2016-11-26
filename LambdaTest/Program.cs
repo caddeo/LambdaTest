@@ -17,7 +17,7 @@ namespace LambdaTest
             Program program = new Program();
             program.Run();
 
-            // TODO: Only allow left hand expressions for now 
+            // TODO: Only allow left hand expressions for now d
             // TODO: If it's a right hand expression, flip the wildcard
         }
 
